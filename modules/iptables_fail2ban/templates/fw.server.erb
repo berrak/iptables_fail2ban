@@ -1,0 +1,207 @@
+#!/bin/bash
+# /root/bin/fw.server
+##############################################################
+# DO NOT EDIT. MANAGES BY PUPPET. CHANGES WILL BE WIPED OUT. #
+##############################################################
+#
+# Rules for HP development server (Debian based host).
+#
+# Copyright (C) (2014-15) K-B.Kronlund <bkronmailbox-copyright@yahoo.se>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+#------------------------------------------------------------------------------
+## Basic data
+# -----------------------------------------------------------------------------
+
+IPTABLES=/sbin/iptables
+MODPROBE=/sbin/modprobe
+SERVICE=/sbin/service
+
+IPTSAVE=/sbin/iptables-save
+IPTSAVEFILE=/root/bin/IPTABLES.FW
+
+#------------------------------------------------------------------------------
+# Remote access
+IPTABLES_HOME_NET = <%= iptables_home_net %>
+IPTABLES_TRUSTED_ADR = <%= iptables_trusted_adr %>
+
+# google.com
+IPTABLES_GOOGLE_NET = <%= iptables_google_net %>
+
+# Local NFS server
+IPTABLES_NFS_HOST_ADDR = <%= iptables_nfs_host_addr %>
+
+#------------------------------------------------------------------------------
+
+## rsyslog: Configured to match log prefix 'FORWARD', 'INPUT' and 
+##  'OUTPUT' to separate out logs to files in /var/log/iptables/
+## 
+LOGOPT="LOG --log-ip-options --log-tcp-options"
+
+#------------------------------------------------------------------------------
+
+## Load module (state tracking)
+$MODPROBE nf_conntrack
+## Load module (RELATED used for ftp, tftp, irc, sctp, amanda)
+$MODPROBE nf_conntrack_ftp
+## Load module to used with broadcasts/multicaste rules
+$MODPROBE xt_pkttype
+## Load module xt_limit to limit excessive logging on public interfaces
+$MODPROBE xt_limit
+## Load module to be able to give a range of ip addresses (not used yet)
+## $MODPROBE xt_iprange
+
+## Flush old rules, old custom chains and zero counters 
+$IPTABLES -F
+$IPTABLES -t nat -F
+$IPTABLES -X
+$IPTABLES -Z
+
+#------------------------------------------------------------------------------
+# Default policies
+#------------------------------------------------------------------------------
+$IPTABLES -P INPUT ACCEPT
+$IPTABLES -P FORWARD ACCEPT
+$IPTABLES -P OUTPUT ACCEPT
+$IPTABLES -t nat -P PREROUTING ACCEPT
+$IPTABLES -t nat -P OUTPUT ACCEPT
+$IPTABLES -t nat -P POSTROUTING ACCEPT
+
+#==============================================================================
+#   LOOPBACK TRAFFIC
+#==============================================================================
+# Free reign to loopback interfaces
+$IPTABLES -I INPUT 1 -i lo -j ACCEPT
+$IPTABLES -I OUTPUT 1 -o lo -j ACCEPT
+
+#==============================================================================
+# INBOUND
+#==============================================================================
+# prevent all invalid input packages on INPUT
+$IPTABLES -A INPUT -m state --state INVALID -j $LOGOPT $RLIMIT --log-prefix "INPUT DROP INVALID: "
+$IPTABLES -A INPUT -m state --state INVALID -j DROP
+
+# allow all established and related traffic in
+$IPTABLES -A INPUT -p all -m state --state ESTABLISHED,RELATED -j ACCEPT
+
+# allow SSH client access for management
+$IPTABLES -A INPUT -p tcp -s $IPTABLES_HOME_NET -m tcp --dport 22 --syn -m state --state NEW -j ACCEPT
+$IPTABLES -A INPUT -p tcp -s $IPTABLES_TRUSTED_ADR -m tcp --dport 22 --syn -m state --state NEW -j ACCEPT
+
+
+# allow DNS traffic
+$IPTABLES -A INPUT -p tcp -m tcp --dport 53 --syn -m state --state NEW -j ACCEPT
+$IPTABLES -A INPUT -p udp -m udp --dport 53 -m state --state NEW -j ACCEPT
+
+# accept HTTP traffic (remove all when configured secure)
+$IPTABLES -A INPUT -p tcp -s $IPTABLES_HOME_NET -m tcp --dport 80 --syn -m state --state NEW -j ACCEPT
+$IPTABLES -A INPUT -p tcp -s $IPTABLES_TRUSTED_ADR -m tcp --dport 80 --syn -m state --state NEW -j ACCEPT
+$IPTABLES -A INPUT -p tcp -s $IPTABLES_GOOGLE_NET -m tcp --dport 80 --syn -m state --state NEW -j ACCEPT
+
+# allow NTP communication
+$IPTABLES -A INPUT -p udp -m udp --dport 123 -m state --state NEW -j ACCEPT
+
+# allow possible multicast mDNS packets
+$IPTABLES -A INPUT -p udp -m udp --dport 5353 -j ACCEPT
+
+# allow all puppet agent-master communication
+$IPTABLES -A INPUT -p tcp -m tcp --dport 8139:8140 --syn -m state --state NEW -j ACCEPT
+
+# allow GIT (port 9418) access for trusted users
+$IPTABLES -A INPUT -p tcp -s $IPTABLES_HOME_NET -m tcp --dport 9418 -m state --state NEW -j ACCEPT
+$IPTABLES -A INPUT -p tcp -s $IPTABLES_TRUSTED_ADR -m tcp --dport 9418 -m state --state NEW -j ACCEPT
+
+# allow some meaningful ICMP
+$IPTABLES -A INPUT -p icmp --icmp-type echo-reply -j ACCEPT
+$IPTABLES -A INPUT -p icmp --icmp-type destination-unreachable -j ACCEPT
+$IPTABLES -A INPUT -p icmp --icmp-type time-exceeded -j ACCEPT
+
+# allow, but log all pings
+$IPTABLES -A INPUT -p icmp --icmp-type echo-request -j $LOGOPT $RLIMIT --log-prefix "INPUT PING: "
+$IPTABLES -A INPUT -p icmp --icmp-type echo-request -j ACCEPT
+
+#==============================================================================
+#  INPUT RULES ONLY IN LOCAL LAN ENVIRONMENT
+#==============================================================================
+
+## NFS clients (consume exported file system)
+## UDP
+$IPTABLES -A INPUT -s $IPTABLES_NFS_HOST_ADDR -p udp --dport 111 -m state --state NEW -j ACCEPT
+$IPTABLES -A INPUT -s $IPTABLES_NFS_HOST_ADDR -p udp --dport 2049 -m state --state NEW -j ACCEPT
+$IPTABLES -A INPUT -s $IPTABLES_NFS_HOST_ADDR -p udp --dport 4000:4001 -m state --state NEW -j ACCEPT
+
+## TCP
+$IPTABLES -A INPUT -s $IPTABLES_NFS_HOST_ADDR -p tcp --dport 111 -m state --state NEW -j ACCEPT
+$IPTABLES -A INPUT -s $IPTABLES_NFS_HOST_ADDR -p tcp --dport 2049 -m state --state NEW -j ACCEPT
+$IPTABLES -A INPUT -s $IPTABLES_NFS_HOST_ADDR -p tcp --dport 4000:4001 -m state --state NEW -j ACCEPT
+
+#==============================================================================
+# DROP MULTI- and BROADCAST and other INPUT as DEFAULT DROP
+#==============================================================================
+# drop (quiet) all router multicasts (IGMP snooping)
+$IPTABLES -A INPUT -d 224.0.0.0/24 -j DROP
+
+# drop (quiet) all broadcasts (from e.g. printers)
+$IPTABLES -A INPUT -m pkttype --pkt-type broadcast -j DROP
+
+#Log and drop everything else
+$IPTABLES -A INPUT ! -i lo -j $LOGOPT $RLIMIT --log-prefix "INPUT DROP DEFAULT: "
+$IPTABLES -A INPUT ! -i lo -j DROP
+
+#==============================================================================
+# FORWARD
+#==============================================================================
+
+# POLICY ACCEPT
+
+#==============================================================================
+# OUTBOUND
+#==============================================================================
+
+# Log mail out from host
+$IPTABLES -A OUTPUT -p tcp -m tcp --dport 25 -m state --state NEW  -j $LOGOPT $RLIMIT --log-prefix "OUTPUT MAIL: "
+$IPTABLES -A OUTPUT -p tcp -m tcp --dport 25 -m state --state NEW -j ACCEPT
+$IPTABLES -A OUTPUT -p tcp -m tcp --dport 465 -m state --state NEW  -j $LOGOPT $RLIMIT --log-prefix "OUTPUT MAIL: "
+$IPTABLES -A OUTPUT -p tcp -m tcp --dport 465 -m state --state NEW -j ACCEPT
+$IPTABLES -A OUTPUT -p tcp -m tcp --dport 587 -m state --state NEW  -j $LOGOPT $RLIMIT --log-prefix "OUTPUT MAIL: "
+$IPTABLES -A OUTPUT -p tcp -m tcp --dport 587 -m state --state NEW -j ACCEPT
+
+
+#############################
+## SAVE THE FILE
+#############################
+
+$IPTSAVE > $IPTSAVEFILE
+chmod 700 $IPTSAVEFILE
+
+#############################
+## LIST LOADED IPTABLES RULES
+#############################
+
+$IPTABLES -L -v --line-numbers
+
+###############################################################################
+# To make this persistent for next boot, manually run:
+#
+#    /root/bin/<scriptname>
+#
+###############################################################################
+scriptname="$(basename "$0")"
+echo "-------------------------------------------"
+echo "To make persistent, execute: $scriptname"
+echo "-------------------------------------------"
+
+exit 0
+

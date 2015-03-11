@@ -1,0 +1,95 @@
+#!/bin/bash
+# /root/bin/fw.clear
+##############################################################
+# DO NOT EDIT. MANAGES BY PUPPET. CHANGES WILL BE WIPED OUT. #
+##############################################################
+#
+# Rules for HP server (Debian development VM guest).
+#
+# Copyright (C) (2014) K-B.Kronlund <bkronmailbox-copyright@yahoo.se>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+#------------------------------------------------------------------------------
+## Basic data
+# -----------------------------------------------------------------------------
+IPTABLES=/sbin/iptables
+MODPROBE=/sbin/modprobe
+SERVICE=/sbin/service
+
+IPTSAVE=/sbin/iptables-save
+IPTSAVEFILE=/root/bin/IPTABLES.FW
+
+#------------------------------------------------------------------------------
+
+## Load module (state tracking)
+$MODPROBE nf_conntrack
+## Load module (RELATED used for ftp, tftp, irc, sctp, amanda)
+$MODPROBE nf_conntrack_ftp
+## Load module to used with broadcasts/multicaste rules
+$MODPROBE xt_pkttype
+## Load module xt_limit to limit excessive logging on public interfaces
+$MODPROBE xt_limit
+## Load module to be able to give a range of ip addresses (not used yet)
+## $MODPROBE xt_iprange
+
+## Flush old rules, old custom chains and zero counters 
+$IPTABLES -F
+$IPTABLES -t nat -F
+$IPTABLES -X
+$IPTABLES -Z
+
+#------------------------------------------------------------------------------
+# Default policies
+#------------------------------------------------------------------------------
+$IPTABLES -P INPUT ACCEPT
+$IPTABLES -P FORWARD ACCEPT
+$IPTABLES -P OUTPUT ACCEPT
+$IPTABLES -t nat -P PREROUTING ACCEPT
+$IPTABLES -t nat -P OUTPUT ACCEPT
+$IPTABLES -t nat -P POSTROUTING ACCEPT
+
+## ============================================================================
+##   LOOPBACK TRAFFIC
+## ============================================================================
+## Free reign to loopback interfaces
+$IPTABLES -I INPUT 1 -i lo -j ACCEPT
+$IPTABLES -I OUTPUT 1 -o lo -j ACCEPT
+
+#############################
+## SAVE THE FILE
+#############################
+
+$IPTSAVE > $IPTSAVEFILE
+chmod 700 $IPTSAVEFILE
+
+#############################
+## LIST LOADED IPTABLES RULES
+#############################
+
+$IPTABLES -L -v --line-numbers
+
+###############################################################################
+# To make this persistent for next boot, manually run:
+#
+#    /root/bin/<scriptname>
+#
+###############################################################################
+scriptname="$(basename "$0")"
+echo "-------------------------------------------"
+echo "To make persistent, execute: $scriptname"
+echo "-------------------------------------------"
+
+exit 0
+

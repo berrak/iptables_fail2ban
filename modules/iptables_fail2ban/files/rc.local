@@ -1,0 +1,17 @@
+#!/bin/sh -e
+##############################################################
+# DO NOT EDIT. MANAGED BY PUPPET. CHANGES WILL BE WIPED OUT. #
+##############################################################
+#
+# rc.local
+#
+
+# Load our firewall script at boot
+
+/sbin/iptables-restore < /root/bin/IPTABLES.FW
+
+# Ensure fail2ban is reloaded after shutdown
+test -x /etc/init.d/fail2ban || exit 0
+/etc/init.d/fail2ban reload
+
+exit 0
