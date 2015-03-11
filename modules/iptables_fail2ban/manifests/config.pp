@@ -28,6 +28,12 @@ class iptables_fail2ban::config {
     # HIERA lookups
     $is_server  = hiera( 'iptables_fail2ban::config::is_server' )
 
+    $is_server  = hiera( 'iptables_fail2ban::config::iptables_home_net' )
+    $is_server  = hiera( 'iptables_fail2ban::config::iptables_google_net' )
+
+    $is_server  = hiera( 'iptables_fail2ban::config::iptables_trusted_addr' )
+    $is_server  = hiera( 'iptables_fail2ban::config::iptables_nfs_host_addr' )
+
     $is_virtual = $::is_virtual
 
     ## Iptables configuration
