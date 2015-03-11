@@ -33,7 +33,7 @@ IPTSAVEFILE=/root/bin/IPTABLES.FW
 #------------------------------------------------------------------------------
 # Remote access
 IPTABLES_HOME_NET = <%= iptables_home_net %>
-IPTABLES_TRUSTED_ADR = <%= iptables_trusted_adr %>
+IPTABLES_TRUSTED_ADDR = <%= iptables_trusted_addr %>
 
 # google.com
 IPTABLES_GOOGLE_NET = <%= iptables_google_net %>
@@ -96,7 +96,7 @@ $IPTABLES -A INPUT -p all -m state --state ESTABLISHED,RELATED -j ACCEPT
 
 # allow SSH client access for management
 $IPTABLES -A INPUT -p tcp -s $IPTABLES_HOME_NET -m tcp --dport 22 --syn -m state --state NEW -j ACCEPT
-$IPTABLES -A INPUT -p tcp -s $IPTABLES_TRUSTED_ADR -m tcp --dport 22 --syn -m state --state NEW -j ACCEPT
+$IPTABLES -A INPUT -p tcp -s $IPTABLES_TRUSTED_ADDR -m tcp --dport 22 --syn -m state --state NEW -j ACCEPT
 
 # allow DNS traffic
 $IPTABLES -A INPUT -p tcp -m tcp --dport 53 --syn -m state --state NEW -j ACCEPT
@@ -104,7 +104,7 @@ $IPTABLES -A INPUT -p udp -m udp --dport 53 -m state --state NEW -j ACCEPT
 
 # accept HTTP traffic (remove all when configured secure)
 $IPTABLES -A INPUT -p tcp -s $IPTABLES_HOME_NET -m tcp --dport 80 --syn -m state --state NEW -j ACCEPT
-$IPTABLES -A INPUT -p tcp -s $IPTABLES_TRUSTED_ADR -m tcp --dport 80 --syn -m state --state NEW -j ACCEPT
+$IPTABLES -A INPUT -p tcp -s $IPTABLES_TRUSTED_ADDR -m tcp --dport 80 --syn -m state --state NEW -j ACCEPT
 $IPTABLES -A INPUT -p tcp -s $IPTABLES_GOOGLE_NET -m tcp --dport 80 --syn -m state --state NEW -j ACCEPT
 
 # allow NTP communication
@@ -118,7 +118,7 @@ $IPTABLES -A INPUT -p tcp -m tcp --dport 8139:8140 --syn -m state --state NEW -j
 
 # allow GIT (port 9418) access for trusted users
 $IPTABLES -A INPUT -p tcp -s $IPTABLES_HOME_NET -m tcp --dport 9418 -m state --state NEW -j ACCEPT
-$IPTABLES -A INPUT -p tcp -s $IPTABLES_TRUSTED_ADR -m tcp --dport 9418 -m state --state NEW -j ACCEPT
+$IPTABLES -A INPUT -p tcp -s $IPTABLES_TRUSTED_ADDR -m tcp --dport 9418 -m state --state NEW -j ACCEPT
 
 # allow some meaningful ICMP
 $IPTABLES -A INPUT -p icmp --icmp-type echo-reply -j ACCEPT
