@@ -3,6 +3,8 @@
 ##
 class iptables_fail2ban::config {
 
+    include stdlib
+
     # HIERA lookups
     $fail2ban_trusted_ipaddr = hiera( 'iptables_fail2ban::config::fail2ban_trusted_ipaddr' )
 
@@ -56,7 +58,7 @@ class iptables_fail2ban::config {
 
     ## Server specifics iptables rules
 
-    if ( ( $is_server == true ) and ( $is_virtual == false ) ) {
+    if ( str2bool($is_server) and ! str2bool($is_virtual) ) {
 
         file { '/root/bin/fw.server':
             content =>  template( 'iptables_fail2ban/fw.server.rb' ),
@@ -76,7 +78,7 @@ class iptables_fail2ban::config {
 
     ## VM (on server) specifics iptables rules
 
-    } elsif ( ( $is_server == true ) and ( $is_virtual == true ) ) {
+    } elsif ( str2bool($is_server) and str2bool($is_virtual) ) {
 
         file { '/root/bin/fw.virtual':
             content =>  template( 'iptables_fail2ban/fw.virtual.erb' ),
