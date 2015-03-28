@@ -61,7 +61,7 @@ class iptables_fail2ban::config {
     if ( str2bool($is_server) and ! str2bool($is_virtual) ) {
 
         file { '/root/bin/fw.server':
-            content =>  template( 'iptables_fail2ban/fw.server.rb' ),
+            content =>  template( 'iptables_fail2ban/fw.server.erb' ),
             owner   => 'root',
             group   => 'root',
             mode    => '0640',
